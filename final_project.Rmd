@@ -1,0 +1,82 @@
+---
+title: "Practical Machine Learning Final Project"
+output: word_document
+
+##This report aims to use fit data to predict the manner in which exercises were performed, as well as predict 20 different test cases. The first step was to download both the training data and test data from Coursera, provided by the following source http://groupware.les.inf.puc-rio.br/har
+---
+```{r}
+# loading libraries
+library(pbkrtest)
+library(car)
+library(caret)
+library(data.table)
+```
+
+## Assigning the datasets and printing out their dimensions which turn out to be contain 19622 observations with 160 variables. The testing data  contains 20 observations and 160 variables. 
+```{r}
+ptrain <- read.csv("~/Desktop/Coursera/Practical Machine Learning/pml-training.csv")
+ptest <- read.csv("~/Desktop/Coursera/Practical Machine Learning/pml-testing.csv")
+dim(ptrain)
+dim(ptest)
+```
+
+## The outcome to predict in the training set is the variable classe. The next steps include removing any unwanted data, including NA's
+
+```{r}
+sum(complete.cases(ptrain))
+ptrain <- ptrain[, colSums(is.na(ptrain)) == 0] 
+ptest <- ptest[, colSums(is.na(ptest)) == 0] 
+classe <- ptrain$classe
+ptrainremove <- grepl("^X|timestamp|window", names(ptrain))
+ptrain <- ptrain[, !ptrainremove]
+cleantrain <- ptrain[, sapply(ptrain, is.numeric)]
+cleantrain$classe <- classe
+ptestremove <- grepl("^X|timestamp|window", names(ptest))
+ptest <- ptest[, !ptestremove]
+cleantest <- ptest[, sapply(ptest, is.numeric)]
+dim(cleantrain)
+dim(cleantest)
+```
+
+## The dimensions of the now cleaned test and training data are 19622 obervations with 53 variables, and 20 observations with 53 variables, respectively. Our next step is to split the training data into the recommened %70 for training, %30 for testing
+```{r}
+set.seed(99)
+settrain <- createDataPartition(cleantrain$classe, p=0.70, list=F)
+traindata <- cleantrain[settrain, ]
+testdata <- cleantrain[-settrain, ]
+traindata1 <-cleantrain[settrain[1]]
+```
+
+## We fit a predictive model choosing a 5-fold cross validation to the training data using the 'random forest' method 
+
+```{r}
+controlrandomforest <- trainControl(method="cv", 5)
+modelrandomforest <- train(classe ~ ., data=traindata, method="rf", trControl=controlrandomforest, ntree=250)
+modelrandomforest
+```
+
+## Then, we estimate the performance of the model on the validation data set.
+```{r}
+predicting_Rf <- predict(modelrandomforest, testdata)
+confMatRandForest <- confusionMatrix(testdata$classe, predicting_Rf)
+confMatRandForest
+accuracy <- postResample(predicting_Rf, testdata$classe)
+accuracy
+anw <- 1 - as.numeric(confusionMatrix(testdata$classe, predicting_Rf)$overall[1])
+anw
+```
+## In conclusion, the  accuracy of the model based on this test data was estimated at 99.1% and the out-of-sample error was estimated at 0.57%.
+
+## Moving on to testing the model on the dataset provided
+```{r}
+result <- predict(modelrandomforest, cleantest[,-length(names(cleantest))])
+result
+```
+
+## plotting the results of the matrix
+```{r}
+plot(confMatRandForest$table, col = confMatRandForest$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  round(confMatRandForest$overall['Accuracy'], 4)))
+```
+
